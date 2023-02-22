@@ -71,6 +71,7 @@ def main():
         with torch.no_grad():
             testx =  nn.functional.pad(testx,(1,0,0,0))
             preds = model(testx).squeeze() # batch*3*N
+        preds = scaler.inverse_transform(preds)
         metrics = util.metric(preds,testy[..., 0])
         mae.append(metrics[0])
         mape.append(metrics[1])
