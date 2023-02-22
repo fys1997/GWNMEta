@@ -97,15 +97,6 @@ def main():
 
 
         s1 = time.time()
-        for iter, (x, y) in enumerate(dataloader['val_loader'].get_iterator()):
-            testx = torch.Tensor(x).to(device)
-            testx = testx.transpose(1, 3)
-            testy = torch.Tensor(y).to(device)
-            testy = testy.transpose(1, 3)
-            metrics = engine.eval(testx, testy[:,0,:,:])
-            valid_loss.append(metrics[0])
-            valid_mape.append(metrics[1])
-            valid_rmse.append(metrics[2])
         for iter, (x, y) in enumerate(dataloader['test_loader'].get_iterator()):
             testx = torch.Tensor(x).to(device)
             testx = testx.transpose(1, 3)
