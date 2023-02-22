@@ -1,3 +1,5 @@
+import torch
+
 import util
 import argparse
 from model import *
@@ -8,7 +10,7 @@ import seaborn as sns
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--device',type=str,default='cuda:3',help='')
-parser.add_argument('--data',type=str,default='data/METR-LA',help='data path')
+parser.add_argument('--data',type=str,default='data/BJ-Flow',help='data path')
 parser.add_argument('--adjdata',type=str,default='data/sensor_graph/adj_mx.pkl',help='adj data path')
 parser.add_argument('--adjtype',type=str,default='doubletransition',help='adj type')
 parser.add_argument('--gcn_bool',action='store_true',help='whether to add graph convolution layer')
@@ -18,13 +20,13 @@ parser.add_argument('--randomadj',action='store_true',help='whether random initi
 parser.add_argument('--seq_length',type=int,default=12,help='')
 parser.add_argument('--nhid',type=int,default=32,help='')
 parser.add_argument('--in_dim',type=int,default=2,help='inputs dimension')
-parser.add_argument('--num_nodes',type=int,default=207,help='number of nodes')
+parser.add_argument('--num_nodes',type=int,default=1024,help='number of nodes')
 parser.add_argument('--batch_size',type=int,default=64,help='batch size')
 parser.add_argument('--learning_rate',type=float,default=0.001,help='learning rate')
 parser.add_argument('--dropout',type=float,default=0.3,help='dropout rate')
 parser.add_argument('--weight_decay',type=float,default=0.0001,help='weight decay rate')
 parser.add_argument('--checkpoint',type=str,help='')
-parser.add_argument('--plotheatmap',type=str,default='True',help='')
+parser.add_argument('--plotheatmap',type=str,default='False',help='')
 
 
 args = parser.parse_args()
@@ -59,10 +61,28 @@ def main():
     realy = torch.Tensor(dataloader['y_test']).to(device)
     realy = realy.transpose(1,3)[:,0,:,:]
 
+    mae=[]
+    mape=[]
+    rmse=[]
+    for iter, (x,y) in enumerate(dataloader['test_loader'].get_iterator()):
+        testx = torch.Tensor(x).to(device)
+        testx = testx.transpose(1, 3)
+        testy = torch.Tensor(y).to(device) # batch*3*N*2
+        with torch.no_grad():
+            testx =  nn.functional.pad(testx,(1,0,0,0))
+            preds = model(testx).squeeze() # batch*3*N
+        metrics = util.metric(preds,testy[..., 0])
+        mae.append(metrics[0])
+        mape.append(metrics[1])
+        rmse.append(metrics[2])
+    log = 'Test average loss: {:.4f} Test average mape: {:.4f} Test average rmse: {:.4f}'
+    print(log.format(np.mean(mae), np.mean(mape), np.mean(rmse)), flush=True)
+
     for iter, (x, y) in enumerate(dataloader['test_loader'].get_iterator()):
         testx = torch.Tensor(x).to(device)
         testx = testx.transpose(1,3)
         with torch.no_grad():
+            testx = nn.functional.pad(testx, (1, 0, 0, 0))
             preds = model(testx).transpose(1,3)
         outputs.append(preds.squeeze())
 
