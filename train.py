@@ -28,6 +28,10 @@ parser.add_argument('--print_every',type=int,default=50,help='')
 #parser.add_argument('--seed',type=int,default=99,help='random seed')
 parser.add_argument('--save',type=str,default='modelSave/BJ-Flow.pth',help='save path')
 parser.add_argument('--expid',type=int,default=1,help='experiment id')
+parser.add_argument('--onlyEMC', type=bool, default=False, help='只使用EC矩阵')
+parser.add_argument('--onlyNMC', type=bool, default=False, help='只使用NMC矩阵')
+parser.add_argument('--onlyADP', type=bool, default=False, help='只使用adp矩阵')
+parser.add_argument('--hops', type=int, default=2, help='GCN hops')
 
 args = parser.parse_args()
 
@@ -58,7 +62,7 @@ def main():
 
     engine = trainer(scaler, args.in_dim, args.seq_length, args.num_nodes, args.nhid, args.dropout,
                          args.learning_rate, args.weight_decay, device, supports, args.gcn_bool, args.addaptadj,
-                         adjinit)
+                         adjinit, onlyEMC=args.onlyEMC, onlyNMC=args.onlyNMC, onlyAdp=args.onlyADP, hops=args.hops)
     best_valid_loss = 10000000
 
 

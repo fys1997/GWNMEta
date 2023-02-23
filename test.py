@@ -27,6 +27,10 @@ parser.add_argument('--dropout',type=float,default=0.3,help='dropout rate')
 parser.add_argument('--weight_decay',type=float,default=0.0001,help='weight decay rate')
 parser.add_argument('--checkpoint',type=str,help='')
 parser.add_argument('--plotheatmap',type=str,default='False',help='')
+parser.add_argument('--onlyEMC', type=bool, default=False, help='只使用EC矩阵')
+parser.add_argument('--onlyNMC', type=bool, default=False, help='只使用NMC矩阵')
+parser.add_argument('--onlyADP', type=bool, default=False, help='只使用adp矩阵')
+parser.add_argument('--hops', type=int, default=2, help='GCN hops')
 
 
 args = parser.parse_args()
@@ -47,7 +51,8 @@ def main():
     if args.aptonly:
         supports = None
 
-    model =  gwnet(device, args.num_nodes, args.dropout, supports=supports, gcn_bool=args.gcn_bool, addaptadj=args.addaptadj, aptinit=adjinit)
+    model =  gwnet(device, args.num_nodes, args.dropout, supports=supports, gcn_bool=args.gcn_bool, addaptadj=args.addaptadj, aptinit=adjinit,
+                   onlyEMC=args.onlyE)
     model.to(device)
     model.load_state_dict(torch.load(args.checkpoint))
     model.eval()

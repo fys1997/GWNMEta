@@ -8,47 +8,52 @@ import util
 
 class nconv(nn.Module):
     def __init__(self):
-        super(nconv,self).__init__()
+        super(nconv, self).__init__()
 
-    def forward(self,x, A):
-        x = torch.einsum('ncvl,vw->ncwl',(x,A))
+    def forward(self, x, A):
+        x = torch.einsum('ncvl,vw->ncwl', (x, A))
         return x.contiguous()
 
-class linear(nn.Module):
-    def __init__(self,c_in,c_out):
-        super(linear,self).__init__()
-        self.mlp = torch.nn.Conv2d(c_in, c_out, kernel_size=(1, 1), padding=(0,0), stride=(1,1), bias=True)
 
-    def forward(self,x):
+class linear(nn.Module):
+    def __init__(self, c_in, c_out):
+        super(linear, self).__init__()
+        self.mlp = torch.nn.Conv2d(c_in, c_out, kernel_size=(1, 1), padding=(0, 0), stride=(1, 1), bias=True)
+
+    def forward(self, x):
         return self.mlp(x)
 
+
 class gcn(nn.Module):
-    def __init__(self,c_in,c_out,dropout,support_len=3,order=2):
-        super(gcn,self).__init__()
+    def __init__(self, c_in, c_out, dropout, support_len=3, order=2):
+        super(gcn, self).__init__()
         self.nconv = nconv()
-        c_in = (order*support_len+1)*c_in
-        self.mlp = linear(c_in,c_out)
+        c_in = (order * support_len + 1) * c_in
+        self.mlp = linear(c_in, c_out)
         self.dropout = dropout
         self.order = order
 
-    def forward(self,x,support):
+    def forward(self, x, support):
         out = [x]
         for a in support:
-            x1 = self.nconv(x,a)
+            x1 = self.nconv(x, a)
             out.append(x1)
             for k in range(2, self.order + 1):
-                x2 = self.nconv(x1,a)
+                x2 = self.nconv(x1, a)
                 out.append(x2)
                 x1 = x2
 
-        h = torch.cat(out,dim=1)
+        h = torch.cat(out, dim=1)
         h = self.mlp(h)
         h = F.dropout(h, self.dropout, training=self.training)
         return h
 
 
 class gwnet(nn.Module):
-    def __init__(self, device, num_nodes, dropout=0.3, supports=None, gcn_bool=True, addaptadj=True, aptinit=None, in_dim=2,out_dim=3,residual_channels=32,dilation_channels=32,skip_channels=256,end_channels=512,kernel_size=2,blocks=4,layers=2):
+    def __init__(self, device, num_nodes, dropout=0.3, supports=None, gcn_bool=True, addaptadj=True, aptinit=None,
+                 in_dim=2, out_dim=3, residual_channels=32, dilation_channels=32, skip_channels=256, end_channels=512,
+                 kernel_size=2, blocks=4, layers=2,
+                 onlyEMC=False, onlyNMC=False, onlyADP=False, hops=2):
         super(gwnet, self).__init__()
         self.dropout = dropout
         self.blocks = blocks
@@ -65,7 +70,7 @@ class gwnet(nn.Module):
 
         self.start_conv = nn.Conv2d(in_channels=in_dim,
                                     out_channels=residual_channels,
-                                    kernel_size=(1,1))
+                                    kernel_size=(1, 1))
         self.supports = supports
 
         receptive_field = 1
@@ -78,9 +83,10 @@ class gwnet(nn.Module):
             if aptinit is None:
                 if supports is None:
                     self.supports = []
-                self.nodevec1 = nn.Parameter(torch.randn(num_nodes, 10).to(device), requires_grad=True).to(device)#初始化E1 E2
+                self.nodevec1 = nn.Parameter(torch.randn(num_nodes, 10).to(device), requires_grad=True).to(
+                    device)  # 初始化E1 E2
                 self.nodevec2 = nn.Parameter(torch.randn(10, num_nodes).to(device), requires_grad=True).to(device)
-                self.supports_len +=1
+                self.supports_len += 1
             else:
                 if supports is None:
                     self.supports = []
@@ -92,20 +98,34 @@ class gwnet(nn.Module):
                 self.supports_len += 1
 
         # 加入NC EC学习层与
-        self.NC = util.get_node_characteristics(device=device) # N*989
-        self.EC = util.get_edge_characteristics(device=device) # N*N*32
+        self.onlyEMC = onlyEMC
+        self.onlyNMC = onlyNMC
+        self.onlyADP = onlyADP
 
-        self.NCL = nn.Linear(in_features=989, out_features=residual_channels, bias=True)
-        self.ECL = nn.Conv2d(in_channels=32, out_channels=residual_channels, kernel_size=(1,1), bias=True)
+        if self.onlyEMC:
+            print("only EMC")
+            self.EC = util.get_edge_characteristics(device=device)  # N*N*32
+            self.ECL = nn.Conv2d(in_channels=32, out_channels=residual_channels, kernel_size=(1, 1), bias=True)
+            self.EmcAdjCnn = nn.Conv2d(in_channels=residual_channels, out_channels=1, kernel_size=(1, 1), bias=True)
+        elif self.onlyNMC:
+            print("only NMC")
+            self.NC = util.get_node_characteristics(device=device)  # N*989
+            self.NCL = nn.Linear(in_features=989, out_features=residual_channels, bias=True)
+            self.NmcAdjEmLinear1 = nn.Linear(in_features=residual_channels, out_features=10, bias=True)
+            self.NmcAdjEmLinear2 = nn.Linear(in_features=residual_channels, out_features=10, bias=True)
+        elif self.onlyADP:
+            print("only ADP")
+        else:
+            print("all")
+            self.NC = util.get_node_characteristics(device=device)  # N*989
+            self.EC = util.get_edge_characteristics(device=device)  # N*N*32
 
-        self.EmcAdjCnn = nn.Conv2d(in_channels=residual_channels, out_channels=1, kernel_size=(1,1), bias=True)
-        self.NmcAdjEmLinear1 = nn.Linear(in_features=residual_channels, out_features=10, bias=True)
-        self.NmcAdjEmLinear2 = nn.Linear(in_features=residual_channels, out_features=10, bias=True)
+            self.NCL = nn.Linear(in_features=989, out_features=residual_channels, bias=True)
+            self.ECL = nn.Conv2d(in_channels=32, out_channels=residual_channels, kernel_size=(1, 1), bias=True)
 
-
-
-
-
+            self.EmcAdjCnn = nn.Conv2d(in_channels=residual_channels, out_channels=1, kernel_size=(1, 1), bias=True)
+            self.NmcAdjEmLinear1 = nn.Linear(in_features=residual_channels, out_features=10, bias=True)
+            self.NmcAdjEmLinear2 = nn.Linear(in_features=residual_channels, out_features=10, bias=True)
 
         for b in range(blocks):
             additional_scope = kernel_size - 1
@@ -114,7 +134,7 @@ class gwnet(nn.Module):
                 # dilated convolutions
                 self.filter_convs.append(nn.Conv2d(in_channels=residual_channels,
                                                    out_channels=dilation_channels,
-                                                   kernel_size=(1,kernel_size),dilation=new_dilation))
+                                                   kernel_size=(1, kernel_size), dilation=new_dilation))
 
                 self.gate_convs.append(nn.Conv1d(in_channels=residual_channels,
                                                  out_channels=dilation_channels,
@@ -130,32 +150,29 @@ class gwnet(nn.Module):
                                                  out_channels=skip_channels,
                                                  kernel_size=(1, 1)))
                 self.bn.append(nn.BatchNorm2d(residual_channels))
-                new_dilation *=2
+                new_dilation *= 2
                 receptive_field += additional_scope
                 additional_scope *= 2
                 if self.gcn_bool:
-                    self.gconv.append(gcn(dilation_channels,residual_channels,dropout,support_len=self.supports_len))
-
-
+                    self.gconv.append(
+                        gcn(dilation_channels, residual_channels, dropout, support_len=self.supports_len, order=hops))
 
         self.end_conv_1 = nn.Conv2d(in_channels=skip_channels,
-                                  out_channels=end_channels,
-                                  kernel_size=(1,1),
-                                  bias=True)
+                                    out_channels=end_channels,
+                                    kernel_size=(1, 1),
+                                    bias=True)
 
         self.end_conv_2 = nn.Conv2d(in_channels=end_channels,
                                     out_channels=3,
-                                    kernel_size=(1,1),
+                                    kernel_size=(1, 1),
                                     bias=True)
 
         self.receptive_field = receptive_field
 
-
-
     def forward(self, input):
         in_len = input.size(3)
-        if in_len<self.receptive_field:
-            x = nn.functional.pad(input,(self.receptive_field-in_len,0,0,0))
+        if in_len < self.receptive_field:
+            x = nn.functional.pad(input, (self.receptive_field - in_len, 0, 0, 0))
         else:
             x = input
         x = self.start_conv(x)
@@ -164,21 +181,39 @@ class gwnet(nn.Module):
         # calculate the current adaptive adj matrix once per iteration
         new_supports = None
         if self.gcn_bool and self.addaptadj and self.supports is not None:
-            NMC = self.NCL(self.NC) # N*rc
-            EMC = self.ECL(self.EC.transpose(0,2).unsqueeze(0)) # 1*rc*N*N
+            if self.onlyEMC:
+                EMC = self.ECL(self.EC.transpose(0, 2).unsqueeze(0))  # 1*rc*N*N
+                EmcAdj = self.EmcAdjCnn(EMC).squeeze(0).squeeze(0)  # N*N
+                EmcAdj = F.softmax(F.relu(EmcAdj), dim=1)  # N*N
+                new_supports = self.supports + [EmcAdj]
+            elif self.onlyNMC:
+                NMC = self.NCL(self.NC)  # N*rc
+                NmcAdjEm1 = self.NmcAdjEmLinear1(NMC)  # N*10
+                NmcAdjEm2 = self.NmcAdjEmLinear2(NMC)  # N*10
+                NmcAdjEm2 = NmcAdjEm2.transpose(0, 1)  # 10*N
+                NmcAdj = F.softmax(F.relu(torch.mm(NmcAdjEm1, NmcAdjEm2)), dim=1)  # N*N
+                new_supports = self.supports + [NmcAdj]
+            elif self.onlyADP:
+                adp = F.softmax(F.relu(torch.mm(self.nodevec1, self.nodevec2)), dim=1)
+                new_supports = self.supports + [adp]
+            else:
+                NMC = self.NCL(self.NC)  # N*rc
+                EMC = self.ECL(self.EC.transpose(0, 2).unsqueeze(0))  # 1*rc*N*N
 
-            EmcAdj = self.EmcAdjCnn(EMC).squeeze(0).squeeze(0) # N*N
-            EmcAdj = F.softmax(F.relu(EmcAdj), dim=1) # N*N
+                EmcAdj = self.EmcAdjCnn(EMC).squeeze(0).squeeze(0)  # N*N
 
-            NmcAdjEm1 = self.NmcAdjEmLinear1(NMC) # N*10
-            NmcAdjEm2 = self.NmcAdjEmLinear2(NMC) # N*10
-            NmcAdjEm2 = NmcAdjEm2.transpose(0,1) # 10*N
-            NmcAdj = F.softmax(F.relu(torch.mm(NmcAdjEm1, NmcAdjEm2)), dim=1) # N*N
+                NmcAdjEm1 = self.NmcAdjEmLinear1(NMC)  # N*10
+                NmcAdjEm2 = self.NmcAdjEmLinear2(NMC)  # N*10
+                NmcAdjEm2 = NmcAdjEm2.transpose(0, 1)  # 10*N
+                NmcAdj = torch.mm(NmcAdjEm1, NmcAdjEm2)  # N*N
 
-            adp = F.softmax(F.relu(torch.mm(self.nodevec1, self.nodevec2)), dim=1)
+                adp = torch.mm(self.nodevec1, self.nodevec2)
 
-            adj = EmcAdj*torch.sigmoid(NmcAdj+adp)+NmcAdj*torch.sigmoid(EmcAdj+adp)+adp*torch.sigmoid(NmcAdj+EmcAdj) # N*N
-            new_supports = self.supports + [adj]
+                adj = EmcAdj * torch.sigmoid(NmcAdj + adp) + NmcAdj * torch.sigmoid(EmcAdj + adp) + adp * torch.sigmoid(
+                    NmcAdj + EmcAdj)
+                adj = F.softmax(F.relu(adj), dim=1)  # N*N
+
+                new_supports = self.supports + [adj]
 
         # WaveNet layers
         for i in range(self.blocks * self.layers):
@@ -192,9 +227,9 @@ class gwnet(nn.Module):
             #                                          |
             # ---------------------------------------> + ------------->	*skip*
 
-            #(dilation, init_dilation) = self.dilations[i]
+            # (dilation, init_dilation) = self.dilations[i]
 
-            #residual = dilation_func(x, dilation, init_dilation, i)
+            # residual = dilation_func(x, dilation, init_dilation, i)
             residual = x
             # dilated convolution
             filter = self.filter_convs[i](residual)
@@ -208,22 +243,20 @@ class gwnet(nn.Module):
             s = x
             s = self.skip_convs[i](s)
             try:
-                skip = skip[:, :, :,  -s.size(3):]
+                skip = skip[:, :, :, -s.size(3):]
             except:
                 skip = 0
             skip = s + skip
-
 
             if self.gcn_bool and self.supports is not None:
                 if self.addaptadj:
                     x = self.gconv[i](x, new_supports)
                 else:
-                    x = self.gconv[i](x,self.supports)
+                    x = self.gconv[i](x, self.supports)
             else:
                 x = self.residual_convs[i](x)
 
             x = x + residual[:, :, :, -x.size(3):]
-
 
             x = self.bn[i](x)
 
@@ -231,8 +264,3 @@ class gwnet(nn.Module):
         x = F.relu(self.end_conv_1(x))
         x = self.end_conv_2(x)
         return x
-
-
-
-
-
