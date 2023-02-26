@@ -52,7 +52,7 @@ def main():
         supports = None
 
     model =  gwnet(device, args.num_nodes, args.dropout, supports=supports, gcn_bool=args.gcn_bool, addaptadj=args.addaptadj, aptinit=adjinit,
-                   onlyEMC=args.onlyEMC)
+                   onlyEMC=args.onlyEMC, onlyNMC=args.onlyNMC, onlyADP=args.onlyADP, hops=args.hops)
     model.to(device)
     model.load_state_dict(torch.load(args.checkpoint))
     model.eval()
