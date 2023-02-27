@@ -117,7 +117,7 @@ def main():
                     mvalid_rmse = np.mean(valid_rmse)
                     string = str(iterNum) + " " + str(mvalid_loss) + " " + str(mvalid_rmse) + " " + str(mvalid_mape)+"\n"
                     f.writelines(string)
-                    iterNum = iterNum + 1
+                iterNum = iterNum + 1
             t2 = time.time()
             train_time.append(t2 - t1)
             # validation
