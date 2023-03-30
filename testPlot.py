@@ -34,6 +34,7 @@ parser.add_argument('--onlyADP', type=bool, default=False, help='只使用adp矩
 parser.add_argument('--hops', type=int, default=2, help='GCN hops')
 parser.add_argument("--output_dir", type=str, default="data/plotArray", help="Output directory.")
 parser.add_argument("--plotName", type=str, default="plot")
+parser.add_argument("--oldGPU", type=str, default="cuda:2")
 
 args = parser.parse_args()
 
@@ -69,7 +70,7 @@ def main():
                   residual_channels=args.nhid,
                   dilation_channels=args.nhid, skip_channels=args.nhid * 8, end_channels=args.nhid * 16)
     model.to(device)
-    model.load_state_dict(torch.load(args.checkpoint, map_location={'cuda:2':'cuda:1'}))
+    model.load_state_dict(torch.load(args.checkpoint, map_location={args.oldGPU:args.device}))
     model.eval()
 
     print('model load successfully')
@@ -86,7 +87,7 @@ def main():
         preds = model(testX).squeeze()  # batch*3*N
     preds = scaler.inverse_transform(preds)  # batch*3*N
     values = preds[:, 0, :]  # 72*N
-    values = values.numpy()
+    values = values.cpu().numpy()
     values = np.reshape(values, (-1, 32, 32))  # T*32*32
     np.savez_compressed(
         os.path.join(args.output_dir, args.plotName + ".npz"),
