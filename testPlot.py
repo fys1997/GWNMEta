@@ -51,6 +51,7 @@ def generate_x(min_t, max_t):
 
 
 def main():
+    os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
     device = torch.device(args.device)
 
     supports = None
