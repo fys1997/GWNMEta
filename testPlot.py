@@ -96,5 +96,4 @@ def main():
 
 
 if __name__ == "__main__":
-    x = generate_x(1740, 1812)
-    print(x.shape)
+    main()
