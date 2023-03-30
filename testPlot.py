@@ -69,7 +69,7 @@ def main():
                   residual_channels=args.nhid,
                   dilation_channels=args.nhid, skip_channels=args.nhid * 8, end_channels=args.nhid * 16)
     model.to(device)
-    model.load_state_dict(torch.load(args.checkpoint))
+    model.load_state_dict(torch.load(args.checkpoint, map_location={'cuda:2':'cuda:1'}))
     model.eval()
 
     print('model load successfully')
