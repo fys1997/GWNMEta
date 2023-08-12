@@ -25,13 +25,14 @@ class linear(nn.Module):
 
 
 class gcn(nn.Module):
-    def __init__(self, c_in, c_out, dropout, support_len=3, order=2):
+    def __init__(self, c_in, c_out, dropout, support_len=3, order=2, mixHop=True):
         super(gcn, self).__init__()
         self.nconv = nconv()
         c_in = (order * support_len + 1) * c_in
         self.mlp = linear(c_in, c_out)
         self.dropout = dropout
         self.order = order
+        self.mixHop = mixHop
 
     def forward(self, x, support):
         out = [x]
@@ -41,7 +42,10 @@ class gcn(nn.Module):
             for k in range(2, self.order + 1):
                 x2 = self.nconv(x1, a)
                 out.append(x2)
-                x1 = x2
+                if self.mixHop:
+                    x1 = torch.sigmoid(x+x2)*torch.tanh(x+x2)
+                else:
+                    x1 = x2
 
         h = torch.cat(out, dim=1)
         h = self.mlp(h)
@@ -53,7 +57,7 @@ class gwnet(nn.Module):
     def __init__(self, device, num_nodes, dropout=0.3, supports=None, gcn_bool=True, addaptadj=True, aptinit=None,
                  in_dim=2, out_dim=3, residual_channels=32, dilation_channels=32, skip_channels=256, end_channels=512,
                  kernel_size=2, blocks=4, layers=2,
-                 onlyEMC=False, onlyNMC=False, onlyADP=False, hops=2):
+                 onlyEMC=False, onlyNMC=False, onlyADP=False, hops=2, mixHop=True):
         super(gwnet, self).__init__()
         self.dropout = dropout
         self.blocks = blocks
@@ -155,7 +159,7 @@ class gwnet(nn.Module):
                 additional_scope *= 2
                 if self.gcn_bool:
                     self.gconv.append(
-                        gcn(dilation_channels, residual_channels, dropout, support_len=self.supports_len, order=hops))
+                        gcn(dilation_channels, residual_channels, dropout, support_len=self.supports_len, order=hops, mixHop=mixHop))
 
         self.end_conv_1 = nn.Conv2d(in_channels=skip_channels,
                                     out_channels=end_channels,

@@ -19,7 +19,7 @@ parser.add_argument('--seq_length',type=int,default=12,help='')
 parser.add_argument('--nhid',type=int,default=32,help='')
 parser.add_argument('--in_dim',type=int,default=2,help='inputs dimension')
 parser.add_argument('--num_nodes',type=int,default=1024,help='number of nodes')
-parser.add_argument('--batch_size',type=int,default=64,help='batch size')
+parser.add_argument('--batch_size',type=int,default=1,help='batch size')
 parser.add_argument('--learning_rate',type=float,default=0.001,help='learning rate')
 parser.add_argument('--dropout',type=float,default=0.3,help='dropout rate')
 parser.add_argument('--weight_decay',type=float,default=0.0001,help='weight decay rate')
@@ -32,6 +32,7 @@ parser.add_argument('--onlyEMC', type=bool, default=False, help='只使用EC矩�
 parser.add_argument('--onlyNMC', type=bool, default=False, help='只使用NMC矩阵')
 parser.add_argument('--onlyADP', type=bool, default=False, help='只使用adp矩阵')
 parser.add_argument('--hops', type=int, default=2, help='GCN hops')
+parser.add_argument('--mixHop', type=bool, default=True, help='是否使用mixHop GCN方法')
 
 args = parser.parse_args()
 
@@ -62,7 +63,8 @@ def main():
 
     engine = trainer(scaler, args.in_dim, args.seq_length, args.num_nodes, args.nhid, args.dropout,
                          args.learning_rate, args.weight_decay, device, supports, args.gcn_bool, args.addaptadj,
-                         adjinit, onlyEMC=args.onlyEMC, onlyNMC=args.onlyNMC, onlyAdp=args.onlyADP, hops=args.hops)
+                         adjinit, onlyEMC=args.onlyEMC, onlyNMC=args.onlyNMC, onlyAdp=args.onlyADP, hops=args.hops,
+                     mixHop=args.mixHop)
     best_valid_loss = 10000000
 
 
